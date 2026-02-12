@@ -131,13 +131,18 @@ Código pronto para uso, sem blocos de markdown.`;
       return processResponse(fullText);
     } catch (error: any) {
       lastError = error;
+      const errorCode = error?.error?.code || error?.code;
+      const errorMessage = error?.error?.message || error?.message || JSON.stringify(error);
       const errorStr = typeof error === 'string' ? error : JSON.stringify(error);
-      if (errorStr?.includes('API key') || errorStr?.includes('quota') || errorStr?.includes('rate limit') || errorStr?.includes('401') || errorStr?.includes('403')) {
+      
+      if (errorCode === 401 || errorCode === 403 || errorStr?.includes('API key') || errorStr?.includes('quota') || errorStr?.includes('rate limit') || errorStr?.includes('401') || errorStr?.includes('403')) {
         throw error;
       }
-      if (error?.error?.code === 401 || error?.error?.code === 403) {
-        throw error;
+      
+      if (errorCode === 404 || errorMessage?.includes('not found') || errorMessage?.includes('NOT_FOUND')) {
+        continue;
       }
+      
       continue;
     }
   }
