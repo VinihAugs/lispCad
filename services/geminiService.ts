@@ -12,9 +12,13 @@ const GEMINI_MODELS = [
   'gemini-pro',
   'gemini-1.5-flash-latest',
   'gemini-1.5-pro-latest',
+  'gemini-2.0-flash-exp',
+  'gemini-2.0-flash-thinking-exp',
   'models/gemini-1.5-flash',
   'models/gemini-1.5-pro',
   'models/gemini-pro',
+  'models/gemini-1.5-flash-latest',
+  'models/gemini-1.5-pro-latest',
 ];
 
 const processResponse = (fullText: string): AnalysisResult => {
@@ -115,10 +119,10 @@ Código pronto para uso, sem blocos de markdown.`;
 
   let lastError: any = null;
 
-  for (const model of GEMINI_MODELS) {
+  for (const modelName of GEMINI_MODELS) {
     try {
       const response = await client.models.generateContent({
-        model: model,
+        model: modelName,
         contents: promptText,
         config: config,
       });
@@ -127,7 +131,11 @@ Código pronto para uso, sem blocos de markdown.`;
       return processResponse(fullText);
     } catch (error: any) {
       lastError = error;
-      if (error.message?.includes('API key') || error.message?.includes('quota') || error.message?.includes('rate limit')) {
+      const errorStr = typeof error === 'string' ? error : JSON.stringify(error);
+      if (errorStr?.includes('API key') || errorStr?.includes('quota') || errorStr?.includes('rate limit') || errorStr?.includes('401') || errorStr?.includes('403')) {
+        throw error;
+      }
+      if (error?.error?.code === 401 || error?.error?.code === 403) {
         throw error;
       }
       continue;
