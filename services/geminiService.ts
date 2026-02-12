@@ -6,6 +6,72 @@ export interface AnalysisResult {
   code: string;
 }
 
+const GEMINI_MODELS = [
+  'gemini-1.5-flash',
+  'gemini-1.5-pro',
+  'gemini-pro',
+  'gemini-1.5-flash-latest',
+  'gemini-1.5-pro-latest',
+  'models/gemini-1.5-flash',
+  'models/gemini-1.5-pro',
+  'models/gemini-pro',
+];
+
+const processResponse = (fullText: string): AnalysisResult => {
+  if (!fullText || fullText.trim().length === 0) {
+    throw new Error('A API retornou uma resposta vazia. Tente novamente.');
+  }
+  
+  const analysisMatch = fullText.match(/=== ANÁLISE ===\s*([\s\S]*?)(?=\s*=== CÓDIGO ===|$)/i);
+  const codeMatch = fullText.match(/=== CÓDIGO ===\s*([\s\S]*?)$/i);
+  
+  let analysis = analysisMatch ? analysisMatch[1].trim() : '';
+  let code = codeMatch ? codeMatch[1].trim() : '';
+  
+  if (!analysis || !code) {
+    const codeBlockMatch = fullText.match(/```(?:lisp|autolisp)?\s*([\s\S]*?)```/i);
+    if (codeBlockMatch) {
+      code = codeBlockMatch[1].trim();
+      analysis = fullText.replace(/```[\s\S]*?```/g, '').trim();
+    } else {
+      const lines = fullText.split('\n');
+      let codeStartIndex = -1;
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].trim().startsWith('(defun') || lines[i].trim().startsWith(';;;')) {
+          codeStartIndex = i;
+          break;
+        }
+      }
+      if (codeStartIndex > 0) {
+        analysis = lines.slice(0, codeStartIndex).join('\n').trim();
+        code = lines.slice(codeStartIndex).join('\n').trim();
+      } else {
+        analysis = fullText;
+        code = '';
+      }
+    }
+  }
+  
+  analysis = analysis
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/`(.*?)`/g, '$1')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/^[-*+]\s+/gm, '• ')
+    .replace(/^>\s+/gm, '')
+    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+    .trim();
+  
+  code = code
+    .replace(/```lisp/g, "")
+    .replace(/```autolisp/g, "")
+    .replace(/```/g, "")
+    .trim();
+  
+  return { analysis, code };
+};
+
 export const analyzeRequest = async (prompt: string, apiKey: string): Promise<AnalysisResult> => {
   if (!apiKey || !apiKey.trim()) {
     throw new Error('Chave API não fornecida');
@@ -17,11 +83,8 @@ export const analyzeRequest = async (prompt: string, apiKey: string): Promise<An
     throw new Error('Prompt muito curto. Forneça mais detalhes.');
   }
   
-  try {
-    const client = new GoogleGenAI({ apiKey });
-    const response = await client.models.generateContent({
-      model: 'models/gemini-1.5-flash',
-      contents: `Necessidade: "${prompt}"
+  const client = new GoogleGenAI({ apiKey });
+  const promptText = `Necessidade: "${prompt}"
 
 Primeiro, forneça uma análise técnica resumida (máximo 300 palavras) com:
 - Estratégia de implementação
@@ -43,79 +106,45 @@ Requisitos de compatibilidade:
 Formato:
 Comece com "=== ANÁLISE ===" seguida da análise.
 Depois "=== CÓDIGO ===" seguido do código AutoLISP completo.
-Código pronto para uso, sem blocos de markdown.`,
-      config: {
-        systemInstruction: "Especialista em AutoLISP para AutoCAD. Gere análises técnicas objetivas e código LISP puro compatível com Windows, Mac, ZWCAD e BricsCAD.",
-        temperature: 0.5,
-      },
-    });
+Código pronto para uso, sem blocos de markdown.`;
 
-    let fullText = response.text || "";
-    
-    if (!fullText || fullText.trim().length === 0) {
-      throw new Error('A API retornou uma resposta vazia. Tente novamente.');
-    }
-    
-    const analysisMatch = fullText.match(/=== ANÁLISE ===\s*([\s\S]*?)(?=\s*=== CÓDIGO ===|$)/i);
-    const codeMatch = fullText.match(/=== CÓDIGO ===\s*([\s\S]*?)$/i);
-    
-    let analysis = analysisMatch ? analysisMatch[1].trim() : '';
-    let code = codeMatch ? codeMatch[1].trim() : '';
-    
-    if (!analysis || !code) {
-      const codeBlockMatch = fullText.match(/```(?:lisp|autolisp)?\s*([\s\S]*?)```/i);
-      if (codeBlockMatch) {
-        code = codeBlockMatch[1].trim();
-        analysis = fullText.replace(/```[\s\S]*?```/g, '').trim();
-      } else {
-        const lines = fullText.split('\n');
-        let codeStartIndex = -1;
-        for (let i = 0; i < lines.length; i++) {
-          if (lines[i].trim().startsWith('(defun') || lines[i].trim().startsWith(';;;')) {
-            codeStartIndex = i;
-            break;
-          }
-        }
-        if (codeStartIndex > 0) {
-          analysis = lines.slice(0, codeStartIndex).join('\n').trim();
-          code = lines.slice(codeStartIndex).join('\n').trim();
-        } else {
-          analysis = fullText;
-          code = '';
-        }
+  const config = {
+    systemInstruction: "Especialista em AutoLISP para AutoCAD. Gere análises técnicas objetivas e código LISP puro compatível com Windows, Mac, ZWCAD e BricsCAD.",
+    temperature: 0.5,
+  };
+
+  let lastError: any = null;
+
+  for (const model of GEMINI_MODELS) {
+    try {
+      const response = await client.models.generateContent({
+        model: model,
+        contents: promptText,
+        config: config,
+      });
+
+      const fullText = response.text || "";
+      return processResponse(fullText);
+    } catch (error: any) {
+      lastError = error;
+      if (error.message?.includes('API key') || error.message?.includes('quota') || error.message?.includes('rate limit')) {
+        throw error;
       }
+      continue;
     }
-    
-    analysis = analysis
-      .replace(/^#{1,6}\s+/gm, '')
-      .replace(/\*\*(.*?)\*\*/g, '$1')
-      .replace(/\*(.*?)\*/g, '$1')
-      .replace(/`(.*?)`/g, '$1')
-      .replace(/```[\s\S]*?```/g, '')
-      .replace(/^[-*+]\s+/gm, '• ')
-      .replace(/^>\s+/gm, '')
-      .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
-      .trim();
-    
-    code = code
-      .replace(/```lisp/g, "")
-      .replace(/```autolisp/g, "")
-      .replace(/```/g, "")
-      .trim();
-    
-    return { analysis, code };
-  } catch (error: any) {
-    if (error.message?.includes('API key')) {
+  }
+
+  if (lastError) {
+    if (lastError.message?.includes('API key')) {
       throw new Error('Chave API inválida ou expirada. Verifique suas configurações.');
     }
-    if (error.message?.includes('model')) {
-      throw new Error('Modelo não disponível. Tente novamente em alguns instantes.');
-    }
-    if (error.message?.includes('quota') || error.message?.includes('rate limit')) {
+    if (lastError.message?.includes('quota') || lastError.message?.includes('rate limit')) {
       throw new Error('Limite de cota excedido. Aguarde alguns minutos ou verifique sua conta.');
     }
-    throw new Error(`Erro ao analisar pedido: ${error.message || 'Erro desconhecido'}`);
+    throw new Error(`Nenhum modelo disponível. Erro: ${lastError.message || 'Erro desconhecido'}`);
   }
+
+  throw new Error('Não foi possível conectar à API. Verifique sua conexão e tente novamente.');
 };
 
 export const extractCode = (code: string): string => {
