@@ -20,7 +20,7 @@ export const analyzeRequest = async (prompt: string, apiKey: string): Promise<An
   try {
     const client = new GoogleGenAI({ apiKey });
     const response = await client.models.generateContent({
-      model: 'gemini-pro',
+      model: 'gemini-1.5-flash',
       contents: `Necessidade: "${prompt}"
 
 Primeiro, forneça uma análise técnica resumida (máximo 300 palavras) com:
