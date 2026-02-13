@@ -76,6 +76,41 @@ const processResponse = (fullText: string): AnalysisResult => {
   return { analysis, code };
 };
 
+const getAvailableModel = async (client: any, apiKey: string): Promise<string | null> => {
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.models && data.models.length > 0) {
+        for (const model of data.models) {
+          if (model.name && model.supportedGenerationMethods?.includes('generateContent')) {
+            const modelName = model.name.replace('models/', '');
+            if (modelName.includes('gemini')) {
+              return modelName;
+            }
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('Não foi possível listar modelos disponíveis:', error);
+  }
+  
+  try {
+    const models = await client.models.list();
+    if (models && models.length > 0) {
+      for (const model of models) {
+        if (model.name && model.supportedGenerationMethods?.includes('generateContent')) {
+          return model.name.replace('models/', '');
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('Não foi possível listar modelos via SDK:', error);
+  }
+  return null;
+};
+
 export const analyzeRequest = async (prompt: string, apiKey: string): Promise<AnalysisResult> => {
   if (!apiKey || !apiKey.trim()) {
     throw new Error('Chave API não fornecida');
@@ -117,9 +152,12 @@ Código pronto para uso, sem blocos de markdown.`;
     temperature: 0.5,
   };
 
+  const availableModel = await getAvailableModel(client, apiKey);
+  const modelsToTry = availableModel ? [availableModel, ...GEMINI_MODELS] : GEMINI_MODELS;
+
   let lastError: any = null;
 
-  for (const modelName of GEMINI_MODELS) {
+  for (const modelName of modelsToTry) {
     try {
       const response = await client.models.generateContent({
         model: modelName,
@@ -148,13 +186,47 @@ Código pronto para uso, sem blocos de markdown.`;
   }
 
   if (lastError) {
+    try {
+      const restResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: promptText
+            }]
+          }],
+          systemInstruction: {
+            parts: [{
+              text: config.systemInstruction
+            }]
+          },
+          generationConfig: {
+            temperature: config.temperature,
+          }
+        })
+      });
+
+      if (restResponse.ok) {
+        const data = await restResponse.json();
+        const fullText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        if (fullText) {
+          return processResponse(fullText);
+        }
+      }
+    } catch (restError) {
+      console.warn('Fallback REST também falhou:', restError);
+    }
+
     if (lastError.message?.includes('API key')) {
       throw new Error('Chave API inválida ou expirada. Verifique suas configurações.');
     }
     if (lastError.message?.includes('quota') || lastError.message?.includes('rate limit')) {
       throw new Error('Limite de cota excedido. Aguarde alguns minutos ou verifique sua conta.');
     }
-    throw new Error(`Nenhum modelo disponível. Erro: ${lastError.message || 'Erro desconhecido'}`);
+    throw new Error(`Nenhum modelo disponível. Verifique se sua chave API tem acesso aos modelos Gemini. Erro: ${lastError.message || 'Erro desconhecido'}`);
   }
 
   throw new Error('Não foi possível conectar à API. Verifique sua conexão e tente novamente.');
