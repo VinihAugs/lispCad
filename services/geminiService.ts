@@ -6,12 +6,6 @@ export interface AnalysisResult {
   code: string;
 }
 
-const GEMINI_MODELS = [
-  'gemini-1.5-pro',
-  'gemini-1.5-flash',
-  'gemini-pro',
-];
-
 const processResponse = (fullText: string): AnalysisResult => {
   if (!fullText || fullText.trim().length === 0) {
     throw new Error('A API retornou uma resposta vazia. Tente novamente.');
@@ -78,8 +72,11 @@ export const analyzeRequest = async (prompt: string, apiKey: string): Promise<An
     throw new Error('Prompt muito curto. Forneça mais detalhes.');
   }
   
-  const client = new GoogleGenAI({ apiKey });
-  const promptText = `Necessidade: "${prompt}"
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Necessidade: "${prompt}"
 
 Primeiro, forneça uma análise técnica resumida (máximo 300 palavras) com:
 - Estratégia de implementação
@@ -101,57 +98,27 @@ Requisitos de compatibilidade:
 Formato:
 Comece com "=== ANÁLISE ===" seguida da análise.
 Depois "=== CÓDIGO ===" seguido do código AutoLISP completo.
-Código pronto para uso, sem blocos de markdown.`;
+Código pronto para uso, sem blocos de markdown.`,
+      config: {
+        systemInstruction: "Especialista em AutoLISP para AutoCAD. Gere análises técnicas objetivas e código LISP puro compatível com Windows, Mac, ZWCAD e BricsCAD.",
+        temperature: 0.5,
+      },
+    });
 
-  const config = {
-    systemInstruction: "Especialista em AutoLISP para AutoCAD. Gere análises técnicas objetivas e código LISP puro compatível com Windows, Mac, ZWCAD e BricsCAD.",
-    temperature: 0.5,
-  };
-
-  let lastError: any = null;
-
-  for (const modelName of GEMINI_MODELS) {
-    try {
-      const response = await client.models.generateContent({
-        model: modelName,
-        contents: promptText,
-        config: config,
-      });
-
-      const fullText = response.text || "";
-      return processResponse(fullText);
-    } catch (error: any) {
-      lastError = error;
-      const errorCode = error?.error?.code || error?.code;
-      const errorMessage = error?.error?.message || error?.message || '';
-      const errorStr = typeof error === 'string' ? error : JSON.stringify(error);
-      
-      if (errorCode === 401 || errorCode === 403 || errorStr?.includes('API key') || errorStr?.includes('quota') || errorStr?.includes('rate limit')) {
-        throw error;
-      }
-      
-      if (errorCode === 404 || errorMessage?.includes('not found') || errorMessage?.includes('NOT_FOUND')) {
-        continue;
-      }
-      
-      continue;
-    }
-  }
-
-  if (lastError) {
-    if (lastError.message?.includes('API key')) {
+    const fullText = response.text || "";
+    return processResponse(fullText);
+  } catch (error: any) {
+    if (error.message?.includes('API key')) {
       throw new Error('Chave API inválida ou expirada. Verifique suas configurações.');
     }
-    if (lastError.message?.includes('model')) {
+    if (error.message?.includes('model')) {
       throw new Error('Modelo não disponível. Tente novamente em alguns instantes.');
     }
-    if (lastError.message?.includes('quota') || lastError.message?.includes('rate limit')) {
+    if (error.message?.includes('quota') || error.message?.includes('rate limit')) {
       throw new Error('Limite de cota excedido. Aguarde alguns minutos ou verifique sua conta.');
     }
-    throw new Error(`Erro ao analisar pedido: ${lastError.message || 'Erro desconhecido'}`);
+    throw new Error(`Erro ao analisar pedido: ${error.message || 'Erro desconhecido'}`);
   }
-
-  throw new Error('Não foi possível conectar à API. Verifique sua conexão e tente novamente.');
 };
 
 export const extractCode = (code: string): string => {
