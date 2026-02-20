@@ -20,6 +20,7 @@ import {
 import { Header, Footer } from './components/Layout';
 import { AppStep, ErrorState } from './types';
 import { analyzeRequest, extractCode, type AnalysisResult } from './services/geminiService';
+import { HexagonBackground } from './components/HexagonBackground';
 
 const App: React.FC = () => {
   const [step, setStep] = useState<AppStep>(AppStep.INPUT);
@@ -132,8 +133,9 @@ const App: React.FC = () => {
 
   if (!isConfigured) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 space-y-8 shadow-2xl animate-in fade-in zoom-in-95 duration-500">
+      <HexagonBackground>
+        <div className="min-h-screen text-slate-200 flex items-center justify-center p-4 pointer-events-none">
+          <div className="pointer-events-auto max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 space-y-8 shadow-2xl animate-in fade-in zoom-in-95 duration-500">
           <div className="text-center space-y-4">
             <div className="mx-auto w-16 h-16 bg-cyan-500/20 rounded-2xl flex items-center justify-center border border-cyan-500/30">
               <Key className="w-8 h-8 text-cyan-500" />
@@ -173,16 +175,20 @@ const App: React.FC = () => {
             Começar a Automatizar
           </button>
         </div>
-      </div>
+        </div>
+      </HexagonBackground>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-200 font-sans">
-      <Header onOpenSettings={() => setShowSettings(true)} />
+    <HexagonBackground>
+      <div className="min-h-screen flex flex-col text-slate-200 font-sans pointer-events-none">
+        <div className="pointer-events-auto">
+          <Header onOpenSettings={() => setShowSettings(true)} />
+        </div>
       
       {showSettings && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-300">
+        <div className="pointer-events-auto fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 space-y-6 relative shadow-2xl animate-in slide-in-from-bottom-8 duration-500">
             <button 
               onClick={() => setShowSettings(false)}
@@ -215,8 +221,8 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-12">
-        <div className="flex items-center justify-between mb-12 px-4 max-w-md mx-auto">
+      <main className="pointer-events-none flex-1 max-w-4xl mx-auto w-full px-4 py-12">
+        <div className="pointer-events-auto flex items-center justify-between mb-12 px-4 max-w-md mx-auto">
           {[AppStep.INPUT, AppStep.ANALYSIS, AppStep.FINISHED].map((s, idx) => (
             <React.Fragment key={s}>
               <div className="flex flex-col items-center gap-2">
@@ -243,9 +249,9 @@ const App: React.FC = () => {
           ))}
         </div>
 
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="pointer-events-none space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
           {error && (
-            <div className="p-4 bg-red-500/10 border border-red-500/50 rounded-xl flex items-start gap-3 text-red-400">
+            <div className="pointer-events-auto p-4 bg-red-500/10 border border-red-500/50 rounded-xl flex items-start gap-3 text-red-400">
               <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
               <div>
                 <p className="font-semibold">Erro no Processamento</p>
@@ -256,12 +262,12 @@ const App: React.FC = () => {
           )}
 
           {step === AppStep.INPUT && (
-            <div className="space-y-6">
-              <div className="text-center space-y-2">
+            <div className="pointer-events-none space-y-6">
+              <div className="text-center space-y-2 pointer-events-none">
                 <h2 className="text-3xl font-bold text-white">Automação AutoCAD</h2>
                 <p className="text-slate-400">Descreva sua necessidade em português. O GenIA.lsp criará um script compatível e funcional.</p>
               </div>
-              <div className="relative group">
+              <div className="relative group pointer-events-auto">
                 <textarea
                   className="w-full h-40 p-6 bg-slate-900 border border-slate-800 rounded-2xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition-all text-lg resize-none shadow-xl"
                   placeholder="Ex: Uma rotina que selecione círculos e coloque o raio deles em um texto no centro."
@@ -300,7 +306,7 @@ const App: React.FC = () => {
           )}
 
           {step === AppStep.ANALYSIS && (
-            <div className="space-y-6 animate-in zoom-in-95 duration-300">
+            <div className="pointer-events-auto space-y-6 animate-in zoom-in-95 duration-300">
               <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
                 <div className="bg-slate-800/50 px-6 py-4 flex items-center justify-between border-b border-slate-700">
                   <div className="flex items-center gap-2 text-cyan-400 font-semibold uppercase text-xs tracking-widest">
@@ -329,7 +335,7 @@ const App: React.FC = () => {
           )}
 
           {step === AppStep.FINISHED && (
-            <div className="space-y-6 animate-in zoom-in-95 duration-300">
+            <div className="pointer-events-auto space-y-6 animate-in zoom-in-95 duration-300">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
                   <div className="bg-slate-800/50 px-6 py-3 flex items-center justify-between border-b border-slate-700">
@@ -377,8 +383,11 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      <Footer />
-    </div>
+        <div className="pointer-events-auto">
+          <Footer />
+        </div>
+      </div>
+    </HexagonBackground>
   );
 };
 

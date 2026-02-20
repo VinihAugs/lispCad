@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LaptopMinimalCheck, Github, Settings, ExternalLink } from 'lucide-react';
+import { LaptopMinimalCheck, Settings, ExternalLink } from 'lucide-react';
 
 interface HeaderProps {
   onOpenSettings: () => void;
@@ -25,9 +25,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSettings }) => (
         >
           <Settings className="w-5 h-5" />
         </button>
-        <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-white transition-colors hidden sm:block">
-          <Github className="w-5 h-5" />
-        </a>
       </nav>
     </div>
   </header>
